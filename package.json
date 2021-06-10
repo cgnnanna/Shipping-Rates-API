@@ -1,0 +1,33 @@
+{
+  "name": "shipping-rates-api",
+  "version": "1.0.0",
+  "description": "An api that allows anyone estimate delivery rates for a product",
+  "main": "app.js",
+  "scripts": {
+    "start": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "ttps://github.com/cgnnanna/Shipping-Rates-API.git"
+  },
+  "keywords": [
+    "Shipping",
+    "Rates",
+    "Delivery",
+    "Rates",
+    "Geolocation",
+    "Products",
+    "Ecommerce",
+    "Delivery",
+    "Fare"
+  ],
+  "author": "Chinyere Nnanna",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "node-fetch": "^2.6.1",
+    "request": "^2.88.2"
+  }
+}
