@@ -5,8 +5,13 @@ retrieves the geographic coordinates for human addresses
 */
 const getGeolocation = async (address) => {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=${process.env.GOOGLE_API_KEY}`;
-    const response = await fetch(url);
-    return await response.json();
+    let response = await fetch(url);
+    response = await response.json();
+    if(response.status !== "OK"){
+        const errMessage = response.error_message || "An error occurred while getting the geolocation";
+        throw Error(errMessage);
+    }
+    return response;
 }
 /*
 retrieves the amount for a pick-up and delivery services from gokada logistics
