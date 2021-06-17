@@ -1,10 +1,10 @@
 const express = require("express");
 
-const {fetchFare} = require("../controller/rateController");
+const {sendFare} = require("../controller/rateController");
 
 const router = express.Router();
 
-router.post("/", fetchFare);
+router.post("/", sendFare);
 
 
 
