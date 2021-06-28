@@ -79,12 +79,21 @@ const sendFare = async (req, res) => {
     try {
 
         const id = Math.random().toString(20).substr(2, 15)
+        
         let fareResponse = await fetchFare(req.body);
+        const data = {
+            id: id,
+            ...fareResponse,
+            email: req.body.recipientEmail,
+            pickupAddress: req.body.pickupAddress,
+            deliveryAddress: req.body.deliveryAddress,
+            createdAt: Date.now()
+        }
         const emailBody = `Here are your requested shipment details:
     Pickup address - ${req.body.pickupAddress}
     Delivery address - ${req.body.deliveryAddress}
     Fare - # ${fareResponse.fare}
-    websiteAddress - ${process.env.HEROKU_URL}/${id}`
+    websiteAddress - ${process.env.HEROKU_URL}/${data.id}`
         console.log(emailBody);
         sgMail.setApiKey(process.env.SENDGRID_API_KEY);
         const msg = {
@@ -93,15 +102,8 @@ const sendFare = async (req, res) => {
             subject: "Your requested shipment rate from Gokada",
             text: emailBody
         };
-        const data = {
-            ...fareResponse,
-            email: req.body.recipientEmail,
-            pickupAddress: req.body.pickupAddress,
-            deliveryAddress: req.body.deliveryAddress,
-            createdAt: Date.now()
-        }
         /* Saves data in the database*/
-        await saveRate(id, data);
+        await saveRate(data.id, data);
         let response = await sgMail.send(msg);
         // console.log("Your requested shipment rate from Gokada", response);
         console.log(response);
