@@ -47,61 +47,17 @@ const fetchFare = async (body) => {
     }
     response = await response.json();
     console.log("Response from HTTP request", response);
-    // res.json({
-    //     success: true,
-    //     data: response
-    // });
     return response;
 
 }
 
-// const sendFare = async(req, res) =>{
-//     try{
-//     const getFare = await fetchFare(req.body.fare);
-//     const url = "https://api.sendgrid.com/api/rates.get.json"
-//     const body = {
-//         emailAddress: req.body.emailAddress,
-//         pickupAddress: req.body.pickupAdress,
-//         deliveryAddress: req.body.deliveryAddress,
-//         totalFare : getFare
-//     }
-//     let response = await fetch(url, {
-//         method: "GET",
-//         headers: {
-//             "Content-Type": "application/json",
-//             "Authorisation": "bearer <process.env.SENDGRID_API_KEY>"
-//         },
-//         body: body
-//     });
-//     console.log(response.json);
-//     if(response.status!==200){
-//         const error = await response.json();
-//         console.error("Error response ", error);
-//         throw Error(error.message)
-//     }
-//     response = await response.json();
-//     console.log("Your requested shipment rate from Gokada", response);
-//     res.json({
-//         success: true,
-//         data: response
-//     });
-// }
-// catch (error) {
-//     console.log(error.message);
-//     res.status(400).json({
-//         success: false,
-//         message: error.message
-//     });
-// } 
 
 
-// }
 /*Sends a mail containing the fare details to the requester's email address */
-
 
 const sendFare = async (req, res) => {
     try {
-        let errorMessage = ""
+        let errorMessage = "";
         if (!req.body.pickupAddress) {
             errorMessage = "Pickup Address must be provided";
             console.log(errorMessage);
@@ -113,87 +69,90 @@ const sendFare = async (req, res) => {
         }
     }
     catch (errorMessage) {
-            res.status(404).json({
+        res.status(404).json({
+            success: false,
+            message: "you excluded an important detail"
+        });
+        return;
+    }
+
+    try {
+
+        const id = Math.random().toString(20).substr(2, 15)
+        let fareResponse = await fetchFare(req.body);
+        const emailBody = `Here are your requested shipment details:
+    Pickup address - ${req.body.pickupAddress}
+    Delivery address - ${req.body.deliveryAddress}
+    Fare - # ${fareResponse.fare}
+    websiteAddress - ${process.env.HEROKU_URL}${id}`
+        console.log(emailBody);
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+        const msg = {
+            to: `${req.body.recipientEmail}`,
+            from: `${process.env.EMAIL}`,
+            subject: "Your requested shipment rate from Gokada",
+            text: emailBody
+        };
+        const data = {
+            ...fareResponse,
+            email: req.body.recipientEmail,
+            pickupAddress: req.body.pickupAddress,
+            deliveryAddress: req.body.deliveryAddress,
+            createdAt: Date.now()
+        }
+        /* Saves data in the database*/
+        await saveRate(id, data);
+        let response = await sgMail.send(msg);
+        // console.log("Your requested shipment rate from Gokada", response);
+        console.log(response);
+        if (response[0].statusCode === 202) {
+            res.json({
+                success: true,
+                // data: response,
+                message: "Your requested shipment rate from Gokada has been forwarded to your email"
+            });
+        }
+    }
+    catch (error) {
+        console.error(error);
+
+        if (error.response) {
+            res.status(400).json({
                 success: false,
-                message: "you excluded an important detail"
+                message: error.message,
+                data: error.response.body
             });
             return;
         }
-
-        try {
-            let fareResponse = await fetchFare(req.body);
-            const emailBody = `Here are your requested shipment details:
-    Pickup address - ${req.body.pickupAddress}
-    Delivery address - ${req.body.deliveryAddress}
-    Fare - # ${fareResponse.fare}`
-            console.log(emailBody);
-            sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-            const msg = {
-                to: `${req.body.recipientEmail}`,
-                from: `${process.env.EMAIL}`,
-                subject: "Your requested shipment rate from Gokada",
-                text: emailBody
-            };
-            const id = Math.random().toString(20).substr(2, 15)
-            const data = {
-                ...fareResponse,
-                email: req.body.recipientEmail,
-                pickupAddress: req.body.pickupAddress,
-                deliveryAddress: req.body.deliveryAddress,
-                createdAt: Date.now()
-            }
-            await saveRate(id, data);
-            let response = await sgMail.send(msg);
-            // console.log("Your requested shipment rate from Gokada", response);
-            console.log(response);
-            if (response[0].statusCode === 202) {
-                res.json({
-                    success: true,
-                    // data: response,
-                    message: "Your requested shipment rate from Gokada has been forwarded to your email"
-                });
-            }
-        }
-        catch (error) {
-            console.error(error);
-
-            if (error.response) {
-                res.status(400).json({
-                    success: false,
-                    message: error.message,
-                    data: error.response.body
-                });
-                return;
-            }
-            res.status(400).json({
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
+    }
+}
+/*Fetch data from the database with a specified request parameter, the rate id of the data stored */
+const getRates = async (req, res) => {
+    try {
+        const rate = await getRate(req.params.rateId);
+        if (rate) {
+            return res.json(rate);
+        } else {
+            return res.status(404).json({
                 success: false,
-                message: error.message
+                message: "The rate you are trying to get does not exist"
             });
         }
     }
-
-    const getRates = async (req, res) => {
-        try {
-            const rate = await getRate(req.params.rateId);
-            if (rate) {
-                return res.json(rate);
-            } else {
-                return res.status(404).json({
-                    success: false,
-                    message: "The rate you are trying to get does not exist"
-                });
-            }
-        }
-        catch (error) {
-            console.log(error);
-            return res.status(400).json({
-                success: false,
-                message: "An error occured while trying to fetch the rate"
-            });
-        }
-
+    catch (error) {
+        console.log(error);
+        return res.status(400).json({
+            success: false,
+            message: "An error occured while trying to fetch the rate"
+        });
     }
-    module.exports = {
-        sendFare,
-        getRates
-    }
+
+}
+module.exports = {
+    sendFare,
+    getRates
+}
