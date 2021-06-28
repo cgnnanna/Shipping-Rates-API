@@ -84,7 +84,7 @@ const sendFare = async (req, res) => {
     Pickup address - ${req.body.pickupAddress}
     Delivery address - ${req.body.deliveryAddress}
     Fare - # ${fareResponse.fare}
-    websiteAddress - ${process.env.HEROKU_URL}${id}`
+    websiteAddress - ${process.env.HEROKU_URL}/${id}`
         console.log(emailBody);
         sgMail.setApiKey(process.env.SENDGRID_API_KEY);
         const msg = {
