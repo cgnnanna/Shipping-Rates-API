@@ -1,10 +1,11 @@
 const express = require("express");
 
-const {sendFare} = require("../controller/rateController");
+const {sendFare, getRates} = require("../controller/rateController");
 
 const router = express.Router();
 
 router.post("/", sendFare);
+router.get("/:rateId", getRates);
 
 
 

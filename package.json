@@ -25,9 +25,12 @@
   "author": "Chinyere Nnanna",
   "license": "MIT",
   "dependencies": {
+    "@google-cloud/storage": "^5.8.5",
     "@sendgrid/mail": "^7.4.4",
     "dotenv": "^10.0.0",
     "express": "^4.17.1",
+    "firebase": "^8.6.8",
+    "firebase-admin": "^9.10.0",
     "node-fetch": "^2.6.1",
     "request": "^2.88.2"
   }
