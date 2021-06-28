@@ -56,6 +56,7 @@ const fetchFare = async (body) => {
 /*Sends a mail containing the fare details to the requester's email address */
 
 const sendFare = async (req, res) => {
+    console.log(req.get("host"), req.protocol);
     try {
         let errorMessage = "";
         if (!req.body.pickupAddress) {
@@ -75,38 +76,29 @@ const sendFare = async (req, res) => {
         });
         return;
     }
-
     try {
-
-        const id = Math.random().toString(20).substr(2, 15)
-        
         let fareResponse = await fetchFare(req.body);
+        const id = Math.random().toString(20).substr(2, 15)
         const data = {
-            id: id,
             ...fareResponse,
             email: req.body.recipientEmail,
             pickupAddress: req.body.pickupAddress,
             deliveryAddress: req.body.deliveryAddress,
             createdAt: Date.now()
         }
-        const emailBody = `Here are your requested shipment details:
-    Pickup address - ${req.body.pickupAddress}
-    Delivery address - ${req.body.deliveryAddress}
-    Fare - # ${fareResponse.fare}
-    website address - ${process.env.HEROKU_URL}/${saveRate(id, data.id)}`
-        console.log(emailBody);
+        /* Saves data in the database*/
+        await saveRate(id, data);
         sgMail.setApiKey(process.env.SENDGRID_API_KEY);
         const msg = {
             to: `${req.body.recipientEmail}`,
             from: `${process.env.EMAIL}`,
             subject: "Your requested shipment rate from Gokada",
-            text: emailBody
+            html: getEmailBody(req, id, fareResponse)
         };
-        /* Saves data in the database*/
-        await saveRate(id, data);
+        
         let response = await sgMail.send(msg);
         // console.log("Your requested shipment rate from Gokada", response);
-        console.log(response);
+        // console.log(response);
         if (response[0].statusCode === 202) {
             res.json({
                 success: true,
@@ -132,6 +124,22 @@ const sendFare = async (req, res) => {
         });
     }
 }
+
+const getEmailBody = (req, id, fareResponse)=>{
+    const url = `http://${req.get("host")}/rates/${id}`
+    const emailBody = `
+    <h2>Here are your requested shipment details:</h2>
+    <p>Pickup address - ${req.body.pickupAddress}</p>
+    <p>Delivery address - ${req.body.deliveryAddress}</p>
+    <p>Fare - # ${fareResponse.fare}</p>
+    <p>
+        <a href='${url}'>Click here</a> to view your shipment details 
+        or copy the url below and paste on your browser.
+    </p>
+    <p>${url}</p>`
+    return emailBody;
+}
+
 /*Fetch data from the database with a specified request parameter, the rate id of the data stored */
 const getRates = async (req, res) => {
     try {
