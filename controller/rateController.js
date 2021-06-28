@@ -93,7 +93,7 @@ const sendFare = async (req, res) => {
     Pickup address - ${req.body.pickupAddress}
     Delivery address - ${req.body.deliveryAddress}
     Fare - # ${fareResponse.fare}
-    websiteAddress - ${process.env.HEROKU_URL}/${data.id}`
+    website address - ${process.env.HEROKU_URL}/${saveRate(id, data.id)}`
         console.log(emailBody);
         sgMail.setApiKey(process.env.SENDGRID_API_KEY);
         const msg = {
@@ -103,7 +103,7 @@ const sendFare = async (req, res) => {
             text: emailBody
         };
         /* Saves data in the database*/
-        await saveRate(data.id, data);
+        await saveRate(id, data);
         let response = await sgMail.send(msg);
         // console.log("Your requested shipment rate from Gokada", response);
         console.log(response);
