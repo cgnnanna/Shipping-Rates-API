@@ -84,7 +84,7 @@ const sendFare = async (req, res) => {
             email: req.body.recipientEmail,
             pickupAddress: req.body.pickupAddress,
             deliveryAddress: req.body.deliveryAddress,
-            createdAt: Date.now()
+            createdAt: new Date().toUTCString()
         }
         /* Saves data in the database*/
         await saveRate(id, data);
