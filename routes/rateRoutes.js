@@ -1,13 +1,13 @@
 const express = require("express");
 
-const {sendFare, getRates, updateRates, deleteRates} = require("../controller/rateController");
+const {createRate, getRate, updateRate, deleteRate} = require("../controller/rateController");
 
 const router = express.Router();
 
-router.post("/", sendFare);
-router.get("/:rateId", getRates);
-router.put("/:rateId", updateRates);
-router.delete("/:rateId", deleteRates);
+router.post("/", createRate);
+router.get("/:rateId", getRate);
+router.put("/:rateId", updateRate);
+router.delete("/:rateId", deleteRate);
 
 
 

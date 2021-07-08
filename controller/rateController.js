@@ -1,7 +1,7 @@
 require("dotenv").config();
 const fetch = require("node-fetch");
 const sgMail = require("@sendgrid/mail");
-const { saveRate, getRate, updateRate } = require("./../db/firebaseDb");
+const { saveToFireBase, getById, updateOnFireBase, deleteOnFirebase } = require("./../db/firebaseDb");
 /*
 retrieves the geographic coordinates for human addresses
 */
@@ -18,7 +18,7 @@ const getGeolocation = async (address) => {
 /*
 retrieves the amount for a pick-up and delivery services from gokada logistics
 */
-const fetchFare = async (body) => {
+const fetchFareRate = async (body) => {
     console.log("fetching fare for...", body);
     const deliveryAddress = await getGeolocation(body.deliveryAddress);
     const pickupAddress = await getGeolocation(body.pickupAddress);
@@ -50,92 +50,79 @@ const fetchFare = async (body) => {
     return response;
 
 }
-
-
-
-/*Sends a mail containing the fare details to the requester's email address */
-
-const sendFare = async (req, res) => {
-    console.log(req.get("host"), req.protocol);
-
+// validates request body parameters to ensure they are valid and complete
+const validate = (body) => {
     let errorMessage = [];
-    if (!req.body.pickupAddress) {
+    if (!body.pickupAddress) {
         errorMessage.push({
             "fieldName": "pickupAddress",
             "message": "pickupAddress is required"
         });
     };
-    if (!req.body.deliveryAddress) {
+    if (!body.deliveryAddress) {
         errorMessage.push({
             "fieldName": "deliveryAddress",
             "message": "deliveryAddress is required"
         });
     }
-    if (!req.body.recipientEmail) {
+    if (!body.recipientEmail) {
         errorMessage.push({
             "fieldName": "recipientEmail",
             "message": "recipientEmail is required"
         });
-
     }
-    if (errorMessage.length > 0) {
-        console.log(errorMessage);
-        res.status(400).json({
+    return errorMessage;
+}
+// writes and overrides data in the database
+const writeRate = async (req, res, id, callback) => {
+    let fareResponse = await fetchFareRate(req.body);
+    const data = {
+        ...fareResponse,
+        email: req.body.recipientEmail,
+        pickupAddress: req.body.pickupAddress,
+        deliveryAddress: req.body.deliveryAddress,
+        createdAt: new Date().toUTCString()
+    }
+    /* Saves/Updates data in the database*/
+    await callback(id, data);
+    return sendFare(req, res, id, fareResponse);
+}
+// handles catch for server errors
+const handleCatch = (req, res, error) => {
+    console.error(error);
+    if (error.response) {
+        return res.status(400).json({
             success: false,
-            error: errorMessage
+            message: error.message,
+            data: error.response.body
         });
     }
-
-
-    try {
-        let fareResponse = await fetchFare(req.body);
-        const id = Math.random().toString(20).substr(2, 15)
-        const data = {
-            ...fareResponse,
-            email: req.body.recipientEmail,
-            pickupAddress: req.body.pickupAddress,
-            deliveryAddress: req.body.deliveryAddress,
-            createdAt: new Date().toUTCString()
-        }
-        /* Saves data in the database*/
-        await saveRate(id, data);
-        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-        const msg = {
-            to: `${req.body.recipientEmail}`,
-            from: `${process.env.EMAIL}`,
-            subject: "Your requested shipment rate from Gokada",
-            html: getEmailBody(req, id, fareResponse)
-        };
-
-        let response = await sgMail.send(msg);
-        // console.log("Your requested shipment rate from Gokada", response);
-        // console.log(response);
-        if (response[0].statusCode === 202) {
-            res.json({
-                success: true,
-                // data: response,
-                message: "Your requested shipment rate from Gokada has been forwarded to your email"
-            });
-        }
-    }
-    catch (error) {
-        console.error(error);
-
-        if (error.response) {
-            res.status(400).json({
-                success: false,
-                message: error.message,
-                data: error.response.body
-            });
-            return;
-        }
-        res.status(400).json({
-            success: false,
-            message: error.message
-        });
-    }
+    return res.status(400).json({
+        success: false,
+        message: error.message
+    });
 }
 
+/*Sends a mail containing the fare details to the requester's email address */
+const sendFare = async (req, res, id, fareResponse) => {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    const msg = {
+        to: `${req.body.recipientEmail}`,
+        from: `${process.env.EMAIL}`,
+        subject: "Your requested shipment rate from Gokada",
+        html: getEmailBody(req, id, fareResponse)
+    };
+
+    let response = await sgMail.send(msg);
+    if (response[0].statusCode !== 202) {
+        throw Error("There was an error sending the mail, please try again later.");
+    }
+    return {
+        success: true,
+        message: "Your requested shipment rate from Gokada has been forwarded to your email"
+    };
+}
+// body for email parameters that will be sent to the requester
 const getEmailBody = (req, id, fareResponse) => {
     const url = `http://${req.get("host")}/rates/${id}`
     const emailBody = `
@@ -152,9 +139,9 @@ const getEmailBody = (req, id, fareResponse) => {
 }
 
 /*Fetch data from the database with a specified request parameter, the rate id of the data stored */
-const getRates = async (req, res) => {
+const getRate = async (req, res) => {
     try {
-        const rate = await getRate(req.params.rateId);
+        const rate = await getById(req.params.rateId);
         if (rate) {
             return res.json(rate);
         } else {
@@ -165,66 +152,66 @@ const getRates = async (req, res) => {
         }
     }
     catch (error) {
-        console.log(error);
-        return res.status(400).json({
-            success: false,
-            message: "An error occured while trying to fetch the rate"
-        });
+        handleCatch(error);
     }
 
 }
-
-const updateRates = async (req, res) => {
+// Saves rate in the database
+const createRate = async (req, res) => {
+    const arr = validate(req.body);
+    if (arr.length > 0) {
+        console.log(arr);
+        return res.status(400).json({
+            success: false,
+            error: arr
+        });
+    }
     try {
-        const updatedRate = await updateRate(req.params.rateId, req.body.rateObj);
-        if (updatedRate) {
-            return res.json(updatedRate);
-        } else {
-            return res.status(404).json({
-                success: false,
-                message: "The rate you are trying to get does not exist"
-            });
-        }
+        const id = Math.random().toString(20).substr(2, 15);
+        const obj = await writeRate(req, res, id, saveToFireBase);
+        return res.json(obj);
     }
     catch (error) {
-        console.log(error);
+        return handleCatch(req, res, error);
+    }
+}
+// updates rate with specific rate id in the database
+const updateRate = async (req, res) => {
+    const arr = validate(req.body);
+    if (arr.length > 0) {
+        console.log(arr);
         return res.status(400).json({
             success: false,
-            message: "An error occured while trying to update the rate"
+            error: arr
         });
     }
-
-
-}
-
-const deleteRates = async( req, res) =>{
     try {
-        const deletedRate = await deleteRate(req.params.rateId);
-        if (deletedRate) {
-            return res.json({
-                success: true,
-                message: `the rate with this ${req.params.rateId} has been deleted`
-            });
-        } else {
-            return res.status(404).json({
-                success: false,
-                message: "The rate you are trying to delete does not exist"
-            });
-        }
+        let response = await writeRate(req, res, req.params.rateId, updateOnFireBase);
+        return res.json({ ...response, message: "The rate was successfully updated and details sent to your mail" });
     }
     catch (error) {
-        console.log(error);
-        return res.status(400).json({
-            success: false,
-            message: "An error occured while trying to delete the rate"
-        });
+        return handleCatch(req, res, error);
+    }
+}
+// deletes rate with specific rate id in the database
+const deleteRate = async (req, res) => {
+    try {
+        const deletedRate = await deleteOnFirebase(req.params.rateId);
+        return res.json({
+            success: true,
+            message: `The rate with the id ${req.params.rateId}, has been deleted`
+        })
+    }
+    catch (error) {
+        handleCatch(error);
     }
 
 
 }
+// exports middleware functions and others
 module.exports = {
-    sendFare,
-    getRates,
-    updateRates,
-    deleteRates
+    createRate,
+    getRate,
+    updateRate,
+    deleteRate
 }
