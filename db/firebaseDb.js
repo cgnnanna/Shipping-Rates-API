@@ -14,8 +14,31 @@ const getRate = async (rateId) => {
    }
 }
 
+const updateRate =(rateId) =>{
+    // A rate entry.
+    let rateData = {
+    updatedAT : new Date().toUTCString
+    };
+  
+    // Get a key for a new Post.
+    let newRateId = firebase.database().ref().child('rates').push().key;
+  
+    // Write the new post's data simultaneously in the posts list and the user's post list.
+    let updates = {};
+    updates['/rates/' + newRateId] = rateData;
+    updates['/rate-data/' + rateId + '/' + newRateId] = rateData;
+  
+    return firebase.database().ref().update(updates);
+  }
+
+  const deleteRate = (rateId) =>{
+    return firebase.database().ref().child("rates").child(rateId).remove();
+  }
+
 module.exports = {
     saveRate,
-    getRate
+    getRate,
+    updateRate,
+    deleteRate
 }
 

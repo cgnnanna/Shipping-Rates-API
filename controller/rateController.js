@@ -1,7 +1,7 @@
 require("dotenv").config();
 const fetch = require("node-fetch");
 const sgMail = require("@sendgrid/mail");
-const { saveRate, getRate } = require("./../db/firebaseDb");
+const { saveRate, getRate, updateRate } = require("./../db/firebaseDb");
 /*
 retrieves the geographic coordinates for human addresses
 */
@@ -57,25 +57,36 @@ const fetchFare = async (body) => {
 
 const sendFare = async (req, res) => {
     console.log(req.get("host"), req.protocol);
-    try {
-        let errorMessage = "";
-        if (!req.body.pickupAddress) {
-            errorMessage = "Pickup Address must be provided";
-            console.log(errorMessage);
-            throw Error(errorMessage);
-        }
-        if (!req.body.deliveryAddress) {
-            errorMessage = "Delivery Address must be provided"
-            throw Error(errorMessage);
-        }
-    }
-    catch (errorMessage) {
-        res.status(404).json({
-            success: false,
-            message: "you excluded an important detail"
+
+    let errorMessage = [];
+    if (!req.body.pickupAddress) {
+        errorMessage.push({
+            "fieldName": "pickupAddress",
+            "message": "pickupAddress is required"
         });
-        return;
+    };
+    if (!req.body.deliveryAddress) {
+        errorMessage.push({
+            "fieldName": "deliveryAddress",
+            "message": "deliveryAddress is required"
+        });
     }
+    if (!req.body.recipientEmail) {
+        errorMessage.push({
+            "fieldName": "recipientEmail",
+            "message": "recipientEmail is required"
+        });
+
+    }
+    if (errorMessage.length > 0) {
+        console.log(errorMessage);
+        res.status(400).json({
+            success: false,
+            error: errorMessage
+        });
+    }
+
+
     try {
         let fareResponse = await fetchFare(req.body);
         const id = Math.random().toString(20).substr(2, 15)
@@ -95,7 +106,7 @@ const sendFare = async (req, res) => {
             subject: "Your requested shipment rate from Gokada",
             html: getEmailBody(req, id, fareResponse)
         };
-        
+
         let response = await sgMail.send(msg);
         // console.log("Your requested shipment rate from Gokada", response);
         // console.log(response);
@@ -125,7 +136,7 @@ const sendFare = async (req, res) => {
     }
 }
 
-const getEmailBody = (req, id, fareResponse)=>{
+const getEmailBody = (req, id, fareResponse) => {
     const url = `http://${req.get("host")}/rates/${id}`
     const emailBody = `
     <h2>Here are your requested shipment details:</h2>
@@ -162,7 +173,58 @@ const getRates = async (req, res) => {
     }
 
 }
+
+const updateRates = async (req, res) => {
+    try {
+        const updatedRate = await updateRate(req.params.rateId, req.body.rateObj);
+        if (updatedRate) {
+            return res.json(updatedRate);
+        } else {
+            return res.status(404).json({
+                success: false,
+                message: "The rate you are trying to get does not exist"
+            });
+        }
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(400).json({
+            success: false,
+            message: "An error occured while trying to update the rate"
+        });
+    }
+
+
+}
+
+const deleteRates = async( req, res) =>{
+    try {
+        const deletedRate = await deleteRate(req.params.rateId);
+        if (deletedRate) {
+            return res.json({
+                success: true,
+                message: `the rate with this ${req.params.rateId} has been deleted`
+            });
+        } else {
+            return res.status(404).json({
+                success: false,
+                message: "The rate you are trying to delete does not exist"
+            });
+        }
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(400).json({
+            success: false,
+            message: "An error occured while trying to delete the rate"
+        });
+    }
+
+
+}
 module.exports = {
     sendFare,
-    getRates
+    getRates,
+    updateRates,
+    deleteRates
 }
